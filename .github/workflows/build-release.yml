@@ -1,0 +1,119 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build macOS x64
+        run: node --experimental-strip-types ./node_modules/gulp/bin/gulp.js vscode-darwin-x64
+
+      - name: Create DMG
+        run: |
+          cd ../VSCode-darwin-x64
+          zip -r ../dukyoung-ide-darwin-x64.zip "Dukyoung IDE.app"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukyoung-ide-darwin-x64
+          path: ../dukyoung-ide-darwin-x64.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows x64
+        run: node --experimental-strip-types ./node_modules/gulp/bin/gulp.js vscode-win32-x64
+
+      - name: Create ZIP
+        run: |
+          Compress-Archive -Path ../VSCode-win32-x64/* -DestinationPath ../dukyoung-ide-win32-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukyoung-ide-win32-x64
+          path: ../dukyoung-ide-win32-x64.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxkbfile-dev libsecret-1-dev
+          npm install
+
+      - name: Build Linux x64
+        run: node --experimental-strip-types ./node_modules/gulp/bin/gulp.js vscode-linux-x64
+
+      - name: Create tar.gz
+        run: |
+          cd ..
+          tar -czvf dukyoung-ide-linux-x64.tar.gz VSCode-linux-x64
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukyoung-ide-linux-x64
+          path: ../dukyoung-ide-linux-x64.tar.gz
+
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dukyoung-ide-darwin-x64/dukyoung-ide-darwin-x64.zip
+            dukyoung-ide-win32-x64/dukyoung-ide-win32-x64.zip
+            dukyoung-ide-linux-x64/dukyoung-ide-linux-x64.tar.gz
+          name: Dukyoung IDE ${{ github.ref_name }}
+          body: |
+            ## 덕영고등학교 IDE ${{ github.ref_name }}
+
+            덕영고등학교 전용 코드 에디터입니다.
+
+            ### 다운로드
+            - **macOS**: dukyoung-ide-darwin-x64.zip
+            - **Windows**: dukyoung-ide-win32-x64.zip
+            - **Linux**: dukyoung-ide-linux-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
