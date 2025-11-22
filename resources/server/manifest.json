@@ -1,0 +1,22 @@
+{
+	"name": "덕영고등학교 코드 에디터",
+	"short_name": "덕영 IDE",
+	"start_url": "/",
+	"lang": "ko-KR",
+	"display": "standalone",
+	"display_override": ["window-controls-overlay"],
+	"theme_color": "#1e40af",
+	"background_color": "#1e1e1e",
+	"icons": [
+		{
+			"src": "code-192.png",
+			"type": "image/png",
+			"sizes": "192x192"
+		},
+		{
+			"src": "code-512.png",
+			"type": "image/png",
+			"sizes": "512x512"
+		}
+	]
+}
