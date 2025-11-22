@@ -1,4 +1,4 @@
-name: Build and Release Web
+name: Build and Release
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-web:
-    runs-on: ubuntu-latest
+  build-macos:
+    runs-on: macos-13
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -18,28 +19,62 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Build Web
-        run: npm run compile-web
-
-      - name: Create web distribution
         run: |
-          mkdir -p dist
-          cp -r out-build dist/
-          cp -r resources dist/
-          cp package.json dist/
-          cp product.json dist/
-          tar -czvf dukyoung-ide-web.tar.gz dist
+          npm install
+          npm run postinstall
 
-      - name: Upload artifact
+      - name: Compile
+        run: node --max-old-space-size=8192 --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-build
+
+      - name: Package macOS
+        run: node --max-old-space-size=8192 --experimental-strip-types ./node_modules/gulp/bin/gulp.js vscode-darwin-x64-min
+
+      - name: Create DMG
+        run: |
+          cd ../VSCode-darwin-x64
+          zip -r ../dukyoung-ide-darwin-x64.zip "덕영고등학교 IDE.app" || zip -r ../dukyoung-ide-darwin-x64.zip *.app
+
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dukyoung-ide-web
-          path: dukyoung-ide-web.tar.gz
+          name: dukyoung-ide-darwin-x64
+          path: ../dukyoung-ide-darwin-x64.zip
+
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          npm install
+          npm run postinstall
+
+      - name: Compile
+        run: node --max-old-space-size=8192 --experimental-strip-types ./node_modules/gulp/bin/gulp.js compile-build
+
+      - name: Package Windows
+        run: node --max-old-space-size=8192 --experimental-strip-types ./node_modules/gulp/bin/gulp.js vscode-win32-x64-min
+
+      - name: Create ZIP
+        run: |
+          cd ..
+          Compress-Archive -Path VSCode-win32-x64/* -DestinationPath dukyoung-ide-win32-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukyoung-ide-win32-x64
+          path: ../dukyoung-ide-win32-x64.zip
 
   release:
-    needs: [build-web]
+    needs: [build-macos, build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
@@ -50,26 +85,26 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dukyoung-ide-web/dukyoung-ide-web.tar.gz
+            dukyoung-ide-darwin-x64/dukyoung-ide-darwin-x64.zip
+            dukyoung-ide-win32-x64/dukyoung-ide-win32-x64.zip
           name: Dukyoung IDE ${{ github.ref_name }}
           body: |
             ## 덕영고등학교 IDE ${{ github.ref_name }}
 
-            덕영고등학교 전용 웹 코드 에디터입니다.
+            덕영고등학교 전용 코드 에디터입니다.
 
             ### 다운로드
-            - **Web 버전**: dukyoung-ide-web.tar.gz
+            - **macOS**: dukyoung-ide-darwin-x64.zip
+            - **Windows**: dukyoung-ide-win32-x64.zip
 
-            ### 실행 방법
-            ```bash
-            tar -xzvf dukyoung-ide-web.tar.gz
-            cd dist
-            npx @vscode/test-web --browserType=chromium --open .
-            ```
+            ### 설치 방법
+            **macOS**: zip 파일 압축 해제 후 .app 파일을 Applications 폴더로 이동
+            **Windows**: zip 파일 압축 해제 후 Code.exe 실행
 
             ### 주요 기능
             - 덕영고등학교 전용 브랜딩
-            - 덕영고등학교 색상 테마
+            - 덕영고등학교 색상 테마 (#2563EB)
+            - 덕영고등학교 로고
             - Open VSX 마켓플레이스 연동
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
